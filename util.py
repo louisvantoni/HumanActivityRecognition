@@ -75,22 +75,6 @@ def highpass_filter(data, sr=SAMPLE_RATE, cutoff=50, order=4):
     # Convert rad/sample → Hz
     freqs = w * sr / (2 * np.pi)
 
-    # Plot
-    plt.style.use("seaborn-v0_8-dark-palette")
-    plt.rcParams.update({
-        "text.usetex": True,
-        "font.family": "serif",
-        "font.serif": ["Latin Modern Roman"],
-        "axes.unicode_minus": False,
-    })
-    plt.figure(figsize=(10, 6), dpi=300, constrained_layout=True)
-    plt.semilogx(freqs, 20 * np.log10(abs(h)))
-    plt.xlabel("Frequency [Hz]")
-    plt.ylabel("Amplitude [dB]")
-    plt.ylim(bottom=-60)
-    plt.grid(which="both", axis="both")
-    plt.axvline(cutoff, color="red", linestyle="--", label="Cutoff")
-    plt.show()
     filtered_data = lfilter(b, a, data)
     return filtered_data
 
@@ -268,27 +252,7 @@ def extract_melspectrogram(y, sr=SAMPLE_RATE, n_mels=128, n_fft=2048, hop_length
 
 
     S_dB = librosa.power_to_db(S, ref=np.max)
-    """
-    plt.style.use("seaborn-v0_8-dark-palette")
-    plt.rcParams.update({
-        "text.usetex": True,
-        "font.family": "serif",
-        "font.serif": ["Latin Modern Roman"],
-        "axes.unicode_minus": False,
-    })
-    plt.figure(figsize=(10, 4), dpi=300, constrained_layout=True)
-    librosa.display.specshow(S_dB, sr=sr, x_axis='time', y_axis='mel', fmax=22050)
-    plt.xlabel("Time (s)")
-    plt.ylabel("Frequency (Hz)")
 
-    duration = S_pcen.shape[1] * hop_length / sr  # total duration in seconds
-    x_ticks = np.arange(0, min(duration, 6) + 1, 1)  # 0,1,2,... up to 6 sec
-    plt.xticks(x_ticks)
-
-    plt.xlim(0, 6)
-    plt.ylim(0, 22050)
-    plt.show()
-    """
     return S_pcen
 
 def extract_mfcc(y, sr=SAMPLE_RATE, n_fft=2048,hop_length=512, n_mfcc=13):
