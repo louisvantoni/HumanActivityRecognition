@@ -23,6 +23,8 @@ from torchvision.ops import DropBlock2d
 
 from config import SAMPLE_RATE, LABEL_LIST, METRICS_PATH, DATA_ROOT
 
+AUDIO_EXTENSIONS = (".mp3", ".wav", ".flac", ".aac", ".m4a")
+
 
 class ShiftSpectrogramX:
     """
@@ -105,6 +107,89 @@ def normalize_loudness_audio_file(input_path, output_path, target_lufs):
         print(f"Saved normalized file: {output_path}\n")
     except Exception as e:
         print(f"Error processing {input_path}: {e}")
+
+def split_audio_into_chunks(folder_path, output_folder_path, chunk_length_in_seconds=6):
+    """
+    Split all audio files in a folder into fixed-length chunks and save
+    them as WAV files in another folder. The final chunk of each file is
+    padded with silence so every chunk has exactly the same length.
+
+    Args:
+        folder_path (str): Folder containing the audio files.
+        output_folder_path (str): Folder where the chunks are saved.
+        chunk_length_in_seconds (int | float): Length of each chunk. Default 6.
+    """
+    os.makedirs(output_folder_path, exist_ok=True)
+
+    chunk_ms = int(chunk_length_in_seconds * 1000)
+
+    for filename in os.listdir(folder_path):
+        if not filename.lower().endswith(AUDIO_EXTENSIONS):
+            continue
+
+        audio_file_path = os.path.join(folder_path, filename)
+        audio = AudioSegment.from_file(audio_file_path)
+        base_name = os.path.splitext(filename)[0]
+
+        chunk_count = 0
+        for start in range(0, len(audio), chunk_ms):
+            chunk = audio[start:start + chunk_ms]
+
+            # Pad the last chunk with silence if it is too short
+            if len(chunk) < chunk_ms:
+                silence = AudioSegment.silent(
+                    duration=chunk_ms - len(chunk),
+                    frame_rate=audio.frame_rate,
+                )
+                chunk = chunk + silence
+
+            output_filename = f"{base_name}_chunk_{chunk_count:03d}.wav"
+            output_file_path = os.path.join(output_folder_path, output_filename)
+            chunk.export(output_file_path, format="wav")
+            chunk_count += 1
+
+        print(f"Split {filename} into {chunk_count} chunk(s)")
+
+def cut_or_pad_audio_to_length(folder_path, output_folder_path, length_in_seconds):
+    """
+    Cut all audio files in a folder to a given length, or pad them with
+    silence if they are shorter. Results are saved as WAV files.
+
+    Args:
+        folder_path (str): Folder containing the audio files.
+        output_folder_path (str): Folder where the processed files are saved.
+        length_in_seconds (int | float): Target length in seconds.
+    """
+    os.makedirs(output_folder_path, exist_ok=True)
+
+    target_ms = int(length_in_seconds * 1000)
+
+    for filename in os.listdir(folder_path):
+        if not filename.lower().endswith(AUDIO_EXTENSIONS):
+            continue
+
+        audio_file_path = os.path.join(folder_path, filename)
+        audio = AudioSegment.from_file(audio_file_path)
+
+        if len(audio) > target_ms:
+            # Cut to the target length
+            processed = audio[:target_ms]
+        elif len(audio) < target_ms:
+            # Pad with silence matching the original audio's format
+            silence = AudioSegment.silent(
+                duration=target_ms - len(audio),
+                frame_rate=audio.frame_rate,
+            )
+            processed = audio + silence
+        else:
+            processed = audio
+
+        output_filename = os.path.splitext(filename)[0] + ".wav"
+        output_file_path = os.path.join(output_folder_path, output_filename)
+        processed.export(output_file_path, format="wav")
+
+        print(f"Processed {filename} to {length_in_seconds} seconds "
+              f"and saved to {output_file_path}")
 
 def generate_train_paths_and_labels(data_root):
     file_paths = []
@@ -654,17 +739,3 @@ def compute_class_metric_correlation(folder, model_name, metric):
     return corr_matrix
 
 if __name__ == "__main__":
-    get_best_epoch_auc("melspectrogram", "pann_transfer")
-    get_best_epoch_f1("melspectrogram", "pann_transfer")
-    get_best_epoch_score("melspectrogram", "pann_transfer", ["label_ranking_average_precision", "mean_average_precision"])
-
-    path = METRICS_PATH
-    checkpoint_path = os.path.dirname(path)
-
-    plot_bce_loss_comparison(METRICS_PATH, checkpoint_path, "pann_transfer", "mean_average_precision")
-    """
-    path = DATA_ROOT + "/Test_highpass/13052015_Afternoon-ZOOM0015_Tr34-30-58.wav"
-    y, sr = librosa.load(path, sr=SAMPLE_RATE)
-
-    extract_melspectrogram(y, sr)
-    """
